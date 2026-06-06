@@ -105,10 +105,21 @@ export async function POST(request: NextRequest) {
     // On divise par ~4 pour avoir un rayon cohérent avec une boucle
     const radiusKm = (duration * AVG_SPEED_KMH) / 4;
 
-    const waypoints = generateWaypoints(lat, lng, radiusKm);
-    const route = await fetchRoute(waypoints);
-    const gpx = buildGpx(route);
+    let route: [number, number][] | null = null;
+    let lastError = "";
+    for (let attempt = 0; attempt < 4; attempt++) {
+      try {
+        const waypoints = generateWaypoints(lat, lng, radiusKm);
+        route = await fetchRoute(waypoints);
+        break;
+      } catch (e) {
+        lastError = e instanceof Error ? e.message : "Erreur inconnue";
+      }
+    }
 
+    if (!route) return Response.json({ error: "Impossible de générer une boucle dans cette zone, réessaie." }, { status: 500 });
+
+    const gpx = buildGpx(route);
     return Response.json({ route, gpx });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Erreur inconnue";
