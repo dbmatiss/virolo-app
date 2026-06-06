@@ -1,8 +1,5 @@
-import fs from "fs";
-import path from "path";
+import { kv } from "@vercel/kv";
 import bcrypt from "bcryptjs";
-
-const DB_PATH = path.join(process.cwd(), "data", "users.json");
 
 export interface User {
   id: string;
@@ -12,30 +9,14 @@ export interface User {
   createdAt: string;
 }
 
-function readUsers(): User[] {
-  try {
-    if (!fs.existsSync(DB_PATH)) return [];
-    return JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
-  } catch {
-    return [];
-  }
+export async function findUserByEmail(email: string): Promise<User | null> {
+  return kv.get<User>(`user:${email.toLowerCase()}`);
 }
 
-function writeUsers(users: User[]) {
-  const dir = path.dirname(DB_PATH);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(DB_PATH, JSON.stringify(users, null, 2));
-}
+export async function createUser(email: string, name: string, password: string): Promise<User> {
+  const existing = await findUserByEmail(email);
+  if (existing) throw new Error("Cet email est déjà utilisé");
 
-export function findUserByEmail(email: string): User | undefined {
-  return readUsers().find((u) => u.email.toLowerCase() === email.toLowerCase());
-}
-
-export function createUser(email: string, name: string, password: string): User {
-  const users = readUsers();
-  if (users.find((u) => u.email.toLowerCase() === email.toLowerCase())) {
-    throw new Error("Cet email est déjà utilisé");
-  }
   const user: User = {
     id: Date.now().toString(),
     email: email.toLowerCase(),
@@ -43,7 +24,8 @@ export function createUser(email: string, name: string, password: string): User 
     passwordHash: bcrypt.hashSync(password, 10),
     createdAt: new Date().toISOString(),
   };
-  writeUsers([...users, user]);
+
+  await kv.set(`user:${user.email}`, user);
   return user;
 }
 
