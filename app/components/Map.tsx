@@ -13,6 +13,7 @@ export default function Map({ route, center }: MapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const polylineRef = useRef<Polyline | null>(null);
   const markerRef = useRef<Marker | null>(null);
+  const positionMarkerRef = useRef<Marker | null>(null);
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -44,7 +45,34 @@ export default function Map({ route, center }: MapProps) {
 
   useEffect(() => {
     if (!mapRef.current) return;
-    mapRef.current.setView(center, mapRef.current.getZoom());
+    const map = mapRef.current;
+    map.setView(center, map.getZoom());
+
+    const updatePositionMarker = async () => {
+      const L = (await import("leaflet")).default;
+
+      // Icône point bleu pulsant via CSS inline
+      const pulseIcon = L.divIcon({
+        className: "",
+        html: `<div style="
+          width:16px;height:16px;
+          background:#3b82f6;
+          border:3px solid white;
+          border-radius:50%;
+          box-shadow:0 0 0 4px rgba(59,130,246,0.3);
+        "></div>`,
+        iconSize: [16, 16],
+        iconAnchor: [8, 8],
+      });
+
+      if (positionMarkerRef.current) {
+        positionMarkerRef.current.setLatLng(center);
+      } else {
+        positionMarkerRef.current = L.marker(center, { icon: pulseIcon }).addTo(map);
+      }
+    };
+
+    updatePositionMarker();
   }, [center]);
 
   useEffect(() => {
