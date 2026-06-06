@@ -43,6 +43,11 @@ export default function Map({ route, center }: MapProps) {
   }, [center]);
 
   useEffect(() => {
+    if (!mapRef.current) return;
+    mapRef.current.setView(center, mapRef.current.getZoom());
+  }, [center]);
+
+  useEffect(() => {
     if (!mapRef.current || !route) return;
 
     const updateRoute = async () => {

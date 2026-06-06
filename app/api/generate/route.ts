@@ -1,10 +1,10 @@
 import { NextRequest } from "next/server";
 
 const ORS_API_KEY = process.env.ORS_API_KEY;
-const AVG_SPEED_KMH = 50; // vitesse moyenne moto sur routes secondaires
+const AVG_SPEED_KMH = 45; // vitesse moyenne moto sur routes secondaires sinueuses
 
-// Génère des waypoints autour du centre pour former une boucle
-// On crée 4 points cardinaux à une distance proportionnelle à la durée
+// Génère des waypoints autour du centre pour former une boucle sinueuse
+// Plus de waypoints + distribution irrégulière = routes plus intéressantes
 function generateWaypoints(
   lat: number,
   lng: number,
@@ -13,18 +13,20 @@ function generateWaypoints(
   const DEG_PER_KM_LAT = 1 / 111;
   const DEG_PER_KM_LNG = 1 / (111 * Math.cos((lat * Math.PI) / 180));
 
-  // On crée une boucle avec 4-5 waypoints dans des directions variées
-  // On ajoute un décalage aléatoire pour éviter des routes trop symétriques
-  const angles = [45, 135, 200, 310]; // angles en degrés
-  const variance = 0.3; // facteur de variation du rayon
+  // 6 waypoints répartis sur 360° avec décalage aléatoire de ±25°
+  // et variation du rayon de ±35% pour créer une boucle asymétrique
+  const baseAngles = [30, 90, 150, 210, 270, 330];
+  const angleVariance = 25; // degrés
+  const radiusVariance = 0.35;
 
-  const points: [number, number][] = [[lat, lng]]; // départ
+  const points: [number, number][] = [[lat, lng]];
 
-  for (const angle of angles) {
+  for (const baseAngle of baseAngles) {
+    const angle = baseAngle + (Math.random() - 0.5) * 2 * angleVariance;
     const rad = (angle * Math.PI) / 180;
-    const r = radiusKm * (1 - variance / 2 + Math.random() * variance);
-    const dlat = Math.sin(rad) * r * DEG_PER_KM_LAT;
-    const dlng = Math.cos(rad) * r * DEG_PER_KM_LNG;
+    const r = radiusKm * (1 - radiusVariance / 2 + Math.random() * radiusVariance);
+    const dlat = Math.cos(rad) * r * DEG_PER_KM_LAT;
+    const dlng = Math.sin(rad) * r * DEG_PER_KM_LNG;
     points.push([lat + dlat, lng + dlng]);
   }
 
@@ -47,7 +49,7 @@ async function fetchRoute(
     options: {
       avoid_features: ["highways", "tollways", "ferries"],
     },
-    preference: "recommended",
+    preference: "shortest",
   };
 
   const res = await fetch(
