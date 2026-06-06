@@ -27,6 +27,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [gpxData, setGpxData] = useState<string | null>(null);
+  const [waypoints, setWaypoints] = useState<[number, number][] | null>(null);
   const [locating, setLocating] = useState(false);
   const [savedRoutes, setSavedRoutes] = useState<SavedRoute[]>([]);
   const [showSaved, setShowSaved] = useState(false);
@@ -71,6 +72,7 @@ export default function Home() {
     setLoading(true);
     setError(null);
     setGpxData(null);
+    setWaypoints(null);
     setJustGenerated(false);
     try {
       const res = await fetch("/api/generate", {
@@ -82,6 +84,7 @@ export default function Home() {
       if (!res.ok) throw new Error(data.error || "Erreur serveur");
       setRoute(data.route);
       setGpxData(data.gpx);
+      setWaypoints(data.waypoints ?? null);
       setJustGenerated(true);
       if (session) saveRoute(data.route, data.gpx);
     } catch (e) {
@@ -115,6 +118,12 @@ export default function Home() {
     const updated = savedRoutes.filter((r) => r.id !== id);
     setSavedRoutes(updated);
     localStorage.setItem(`virolo_routes_${session.user.email}`, JSON.stringify(updated));
+  };
+
+  const openGoogleMaps = () => {
+    if (!waypoints) return;
+    const stops = waypoints.map(([lat, lng]) => `${lat},${lng}`).join("/");
+    window.open(`https://www.google.com/maps/dir/${stops}`, "_blank");
   };
 
   const durationLabel = () => {
@@ -301,13 +310,22 @@ export default function Home() {
               {justGenerated && gpxData && (
                 <div className="flex gap-2 animate-fade-in">
                   <button
+                    onClick={openGoogleMaps}
+                    className="flex-1 flex items-center justify-center gap-1.5 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 text-blue-400 hover:text-blue-300 font-medium py-2.5 rounded-xl transition-colors text-sm"
+                  >
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+                    </svg>
+                    Google Maps
+                  </button>
+                  <button
                     onClick={downloadGpx}
                     className="flex-1 flex items-center justify-center gap-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 hover:text-emerald-300 font-medium py-2.5 rounded-xl transition-colors text-sm"
                   >
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                     </svg>
-                    Télécharger GPX
+                    GPX
                   </button>
                   {!session && (
                     <Link

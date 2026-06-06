@@ -106,21 +106,22 @@ export async function POST(request: NextRequest) {
     const radiusKm = (duration * AVG_SPEED_KMH) / 4;
 
     let route: [number, number][] | null = null;
-    let lastError = "";
+    let usedWaypoints: [number, number][] | null = null;
     for (let attempt = 0; attempt < 4; attempt++) {
       try {
         const waypoints = generateWaypoints(lat, lng, radiusKm);
         route = await fetchRoute(waypoints);
+        usedWaypoints = waypoints;
         break;
       } catch (e) {
-        lastError = e instanceof Error ? e.message : "Erreur inconnue";
+        void e;
       }
     }
 
-    if (!route) return Response.json({ error: "Impossible de générer une boucle dans cette zone, réessaie." }, { status: 500 });
+    if (!route || !usedWaypoints) return Response.json({ error: "Impossible de générer une boucle dans cette zone, réessaie." }, { status: 500 });
 
     const gpx = buildGpx(route);
-    return Response.json({ route, gpx });
+    return Response.json({ route, gpx, waypoints: usedWaypoints });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Erreur inconnue";
     return Response.json({ error: message }, { status: 500 });
