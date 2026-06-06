@@ -1,34 +1,41 @@
-import { kv } from "@vercel/kv";
+import { supabase } from "./supabase";
 import bcrypt from "bcryptjs";
 
 export interface User {
   id: string;
   email: string;
   name: string;
-  passwordHash: string;
-  createdAt: string;
+  password_hash: string;
+  created_at: string;
 }
 
 export async function findUserByEmail(email: string): Promise<User | null> {
-  return kv.get<User>(`user:${email.toLowerCase()}`);
+  const { data } = await supabase
+    .from("users")
+    .select("*")
+    .eq("email", email.toLowerCase())
+    .single();
+  return data ?? null;
 }
 
 export async function createUser(email: string, name: string, password: string): Promise<User> {
   const existing = await findUserByEmail(email);
   if (existing) throw new Error("Cet email est déjà utilisé");
 
-  const user: User = {
-    id: Date.now().toString(),
-    email: email.toLowerCase(),
-    name,
-    passwordHash: bcrypt.hashSync(password, 10),
-    createdAt: new Date().toISOString(),
-  };
+  const { data, error } = await supabase
+    .from("users")
+    .insert({
+      email: email.toLowerCase(),
+      name,
+      password_hash: bcrypt.hashSync(password, 10),
+    })
+    .select()
+    .single();
 
-  await kv.set(`user:${user.email}`, user);
-  return user;
+  if (error) throw new Error(error.message);
+  return data;
 }
 
 export function verifyPassword(user: User, password: string): boolean {
-  return bcrypt.compareSync(password, user.passwordHash);
+  return bcrypt.compareSync(password, user.password_hash);
 }
