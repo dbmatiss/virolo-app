@@ -37,6 +37,7 @@ export default function AppPage() {
   const [justGenerated, setJustGenerated] = useState(false);
   const [shareToken, setShareToken] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [spots, setSpots] = useState<{ name: string; lat: number; lng: number }[]>([]);
 
   useEffect(() => {
     if (!session?.user) return;
@@ -58,6 +59,7 @@ export default function AppPage() {
     setWaypoints(null);
     setShareToken(null);
     setJustGenerated(false);
+    setSpots([]);
     try {
       const res = await fetch("/api/generate", {
         method: "POST",
@@ -69,6 +71,7 @@ export default function AppPage() {
       setRoute(data.route);
       setGpxData(data.gpx);
       setWaypoints(data.waypoints ?? null);
+      setSpots(data.spots ?? []);
       setJustGenerated(true);
 
       if (session?.user) {
@@ -307,6 +310,22 @@ export default function AppPage() {
                       )}
                     </button>
                   )}
+                </div>
+              )}
+
+              {spots.length > 0 && (
+                <div className="bg-zinc-800/60 border border-zinc-700/60 rounded-xl p-3 animate-fade-in">
+                  <p className="text-xs font-medium text-zinc-400 mb-2 flex items-center gap-1.5">
+                    <span>📍</span> Spots moto sur ta route
+                  </p>
+                  <div className="space-y-1.5">
+                    {spots.map((s) => (
+                      <div key={s.name} className="flex items-center gap-2">
+                        <div className="w-1.5 h-1.5 rounded-full bg-orange-400 flex-shrink-0" />
+                        <span className="text-xs text-zinc-300 truncate">{s.name}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 

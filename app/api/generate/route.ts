@@ -1,10 +1,8 @@
 import { NextRequest } from "next/server";
 
 const ORS_API_KEY = process.env.ORS_API_KEY;
-const AVG_SPEED_KMH = 45; // vitesse moyenne moto sur routes secondaires sinueuses
+const AVG_SPEED_KMH = 45;
 
-// Génère des waypoints autour du centre pour former une boucle sinueuse
-// Plus de waypoints + distribution irrégulière = routes plus intéressantes
 type Style = "tranquille" | "sportif" | "extreme";
 
 const STYLE_CONFIG: Record<Style, { points: number; angleVariance: number; radiusVariance: number }> = {
@@ -12,6 +10,99 @@ const STYLE_CONFIG: Record<Style, { points: number; angleVariance: number; radiu
   sportif:    { points: 6, angleVariance: 25, radiusVariance: 0.35 },
   extreme:    { points: 8, angleVariance: 35, radiusVariance: 0.5 },
 };
+
+interface MotoSpot {
+  lat: number;
+  lng: number;
+  name: string;
+}
+
+// Interroge Overpass API pour trouver les spots moto dans la zone :
+// viewpoints, attractions touristiques, routes de cols, circuits, forêts
+async function fetchMotoSpots(lat: number, lng: number, radiusKm: number): Promise<MotoSpot[]> {
+  const radiusM = Math.round(radiusKm * 1000);
+
+  const query = `
+[out:json][timeout:10];
+(
+  node["tourism"="viewpoint"](around:${radiusM},${lat},${lng});
+  node["tourism"="attraction"](around:${radiusM},${lat},${lng});
+  node["sport"="motor"](around:${radiusM},${lat},${lng});
+  way["highway"]["name"]["tourism"="yes"](around:${radiusM},${lat},${lng});
+  way["highway"]["name"]["scenic"="yes"](around:${radiusM},${lat},${lng});
+  way["highway"="secondary"]["name"][~"virage|col|corniche|escargot|belvédère|panorama"~"i"](around:${radiusM},${lat},${lng});
+  way["highway"="tertiary"]["name"][~"virage|col|corniche|escargot|belvédère|panorama"~"i"](around:${radiusM},${lat},${lng});
+  relation["route"="road"]["name"](around:${radiusM},${lat},${lng});
+);
+out center 15;
+`;
+
+  try {
+    const res = await fetch("https://overpass-api.de/api/interpreter", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: `data=${encodeURIComponent(query)}`,
+      signal: AbortSignal.timeout(8000),
+    });
+
+    if (!res.ok) return [];
+    const data = await res.json();
+
+    const spots: MotoSpot[] = [];
+    for (const el of data.elements ?? []) {
+      const name = el.tags?.name;
+      if (!name) continue;
+      const spotLat = el.lat ?? el.center?.lat;
+      const spotLng = el.lon ?? el.center?.lon;
+      if (!spotLat || !spotLng) continue;
+      spots.push({ lat: spotLat, lng: spotLng, name });
+    }
+
+    return spots;
+  } catch {
+    return [];
+  }
+}
+
+// Insère les spots moto comme waypoints dans la boucle.
+// On place chaque spot au point de la boucle dont l'angle est le plus proche,
+// en remplaçant ce waypoint si le spot est dans le rayon.
+function injectSpots(
+  wpts: [number, number][],
+  spots: MotoSpot[],
+  centerLat: number,
+  centerLng: number
+): [number, number][] {
+  if (spots.length === 0) return wpts;
+
+  // On garde début et fin (départ = wpts[0] = wpts[last])
+  const inner = wpts.slice(1, -1);
+
+  for (const spot of spots.slice(0, 3)) {
+    // Angle du spot par rapport au centre
+    const spotAngle = Math.atan2(spot.lng - centerLng, spot.lat - centerLat);
+
+    // Trouver le waypoint intérieur dont l'angle est le plus proche
+    let bestIdx = 0;
+    let bestDiff = Infinity;
+    for (let i = 0; i < inner.length; i++) {
+      const wAngle = Math.atan2(inner[i][1] - centerLng, inner[i][0] - centerLat);
+      const diff = Math.abs(spotAngle - wAngle);
+      const normalizedDiff = Math.min(diff, 2 * Math.PI - diff);
+      if (normalizedDiff < bestDiff) {
+        bestDiff = normalizedDiff;
+        bestIdx = i;
+      }
+    }
+
+    // Remplace si l'angle est à moins de 30° d'écart
+    if (bestDiff < (30 * Math.PI) / 180) {
+      inner[bestIdx] = [spot.lat, spot.lng];
+    }
+  }
+
+  return [wpts[0], ...inner, wpts[wpts.length - 1]];
+}
 
 function generateWaypoints(
   lat: number,
@@ -41,49 +132,34 @@ function generateWaypoints(
   return wpts;
 }
 
-// Appelle l'API OpenRouteService pour calculer le tracé routier
-async function fetchRoute(
-  waypoints: [number, number][]
-): Promise<[number, number][]> {
+async function fetchRoute(waypoints: [number, number][]): Promise<[number, number][]> {
   if (!ORS_API_KEY) throw new Error("Clé API ORS manquante");
 
-  const coordinates = waypoints.map(([lat, lng]) => [lng, lat]); // ORS: [lng, lat]
-
-  const body = {
-    coordinates,
-    profile: "driving-car",
-    format: "geojson",
-    options: {
-      avoid_features: ["highways", "tollways", "ferries"],
-    },
-    preference: "shortest",
-  };
+  const coordinates = waypoints.map(([lat, lng]) => [lng, lat]);
 
   const res = await fetch(
     "https://api.openrouteservice.org/v2/directions/driving-car/geojson",
     {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: ORS_API_KEY,
-      },
-      body: JSON.stringify(body),
+      headers: { "Content-Type": "application/json", Authorization: ORS_API_KEY },
+      body: JSON.stringify({
+        coordinates,
+        profile: "driving-car",
+        format: "geojson",
+        options: { avoid_features: ["highways", "tollways", "ferries"] },
+        preference: "shortest",
+      }),
     }
   );
 
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`ORS error: ${err}`);
-  }
+  if (!res.ok) throw new Error(`ORS error: ${await res.text()}`);
 
   const data = await res.json();
-  const coords: [number, number][] = data.features[0].geometry.coordinates.map(
+  return data.features[0].geometry.coordinates.map(
     ([lng, lat]: [number, number]) => [lat, lng]
   );
-  return coords;
 }
 
-// Génère le fichier GPX à partir d'un tableau de coordonnées
 function buildGpx(coords: [number, number][]): string {
   const trkpts = coords
     .map(([lat, lng]) => `    <trkpt lat="${lat}" lon="${lng}"></trkpt>`)
@@ -108,29 +184,45 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: "Paramètres manquants" }, { status: 400 });
     }
 
-    // Calcul du rayon : durée (h) × vitesse (km/h) ÷ 4
-    // On divise par ~4 pour avoir un rayon cohérent avec une boucle
     const radiusKm = (duration * AVG_SPEED_KMH) / 4;
+
+    // Cherche les spots moto en parallèle pendant qu'on prépare les waypoints
+    const spotsPromise = fetchMotoSpots(lat, lng, radiusKm);
 
     let route: [number, number][] | null = null;
     let usedWaypoints: [number, number][] | null = null;
+    let spots: MotoSpot[] = [];
+
     for (let attempt = 0; attempt < 4; attempt++) {
       try {
-        const waypoints = generateWaypoints(lat, lng, radiusKm, style);
-        route = await fetchRoute(waypoints);
-        usedWaypoints = waypoints;
+        let wpts = generateWaypoints(lat, lng, radiusKm, style as Style);
+
+        // Au 1er essai on attend les spots pour les injecter
+        if (attempt === 0) {
+          spots = await spotsPromise;
+          wpts = injectSpots(wpts, spots, lat, lng);
+        }
+
+        route = await fetchRoute(wpts);
+        usedWaypoints = wpts;
         break;
-      } catch (e) {
-        void e;
+      } catch {
+        // retry avec nouveaux waypoints aléatoires
       }
     }
 
-    if (!route || !usedWaypoints) return Response.json({ error: "Impossible de générer une boucle dans cette zone, réessaie." }, { status: 500 });
+    if (!route || !usedWaypoints) {
+      return Response.json({ error: "Impossible de générer une boucle dans cette zone, réessaie." }, { status: 500 });
+    }
 
     const gpx = buildGpx(route);
-    return Response.json({ route, gpx, waypoints: usedWaypoints });
+    return Response.json({
+      route,
+      gpx,
+      waypoints: usedWaypoints,
+      spots: spots.slice(0, 3).map((s) => ({ name: s.name, lat: s.lat, lng: s.lng })),
+    });
   } catch (e) {
-    const message = e instanceof Error ? e.message : "Erreur inconnue";
-    return Response.json({ error: message }, { status: 500 });
+    return Response.json({ error: e instanceof Error ? e.message : "Erreur inconnue" }, { status: 500 });
   }
 }
