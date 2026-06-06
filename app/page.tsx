@@ -131,7 +131,7 @@ export default function Home() {
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <header className="flex-none bg-zinc-900/95 backdrop-blur border-b border-zinc-800 px-4 py-3 flex items-center justify-between z-50">
+      <header className="flex-none bg-zinc-900/95 backdrop-blur border-b border-zinc-800 px-4 py-3 flex items-center justify-between z-[2000] relative">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center text-sm font-bold">
             V
@@ -175,7 +175,7 @@ export default function Home() {
                   </svg>
                 </button>
                 {userMenuOpen && (
-                  <div className="absolute right-0 mt-1 w-48 bg-zinc-800 border border-zinc-700 rounded-xl shadow-xl z-50 overflow-hidden animate-fade-in">
+                  <div className="absolute right-0 mt-1 w-48 bg-zinc-800 border border-zinc-700 rounded-xl shadow-xl z-[2001] overflow-hidden animate-fade-in">
                     <div className="px-4 py-3 border-b border-zinc-700">
                       <p className="text-sm font-medium text-white truncate">{session.user?.name}</p>
                       <p className="text-xs text-zinc-400 truncate">{session.user?.email}</p>
@@ -212,7 +212,7 @@ export default function Home() {
         </div>
 
         {/* Control panel */}
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-full max-w-sm px-4 sm:left-4 sm:translate-x-0 sm:bottom-4 z-40">
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-full max-w-sm px-4 sm:left-4 sm:translate-x-0 sm:bottom-4 z-[1000]">
           <div className="bg-zinc-900/95 backdrop-blur border border-zinc-700/60 rounded-2xl shadow-2xl overflow-hidden">
             {/* Top — depart */}
             <div className="px-4 pt-4 pb-3 border-b border-zinc-800">
@@ -335,13 +335,13 @@ export default function Home() {
 
         {/* Click outside to close user menu */}
         {userMenuOpen && (
-          <div className="fixed inset-0 z-30" onClick={() => setUserMenuOpen(false)} />
+          <div className="fixed inset-0 z-[1500]" onClick={() => setUserMenuOpen(false)} />
         )}
       </div>
 
       {/* Modal — boucles sauvegardées */}
       {showSaved && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[2000] flex items-end sm:items-center justify-center p-4">
           <div className="bg-zinc-900 border border-zinc-700 rounded-2xl w-full max-w-md max-h-[80vh] flex flex-col animate-fade-in">
             <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800">
               <h2 className="font-bold text-lg">Mes boucles sauvegardées</h2>
