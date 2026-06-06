@@ -5,21 +5,28 @@ const AVG_SPEED_KMH = 45; // vitesse moyenne moto sur routes secondaires sinueus
 
 // Génère des waypoints autour du centre pour former une boucle sinueuse
 // Plus de waypoints + distribution irrégulière = routes plus intéressantes
+type Style = "tranquille" | "sportif" | "extreme";
+
+const STYLE_CONFIG: Record<Style, { points: number; angleVariance: number; radiusVariance: number }> = {
+  tranquille: { points: 4, angleVariance: 15, radiusVariance: 0.2 },
+  sportif:    { points: 6, angleVariance: 25, radiusVariance: 0.35 },
+  extreme:    { points: 8, angleVariance: 35, radiusVariance: 0.5 },
+};
+
 function generateWaypoints(
   lat: number,
   lng: number,
-  radiusKm: number
+  radiusKm: number,
+  style: Style = "sportif"
 ): [number, number][] {
   const DEG_PER_KM_LAT = 1 / 111;
   const DEG_PER_KM_LNG = 1 / (111 * Math.cos((lat * Math.PI) / 180));
 
-  // 6 waypoints répartis sur 360° avec décalage aléatoire de ±25°
-  // et variation du rayon de ±35% pour créer une boucle asymétrique
-  const baseAngles = [30, 90, 150, 210, 270, 330];
-  const angleVariance = 25; // degrés
-  const radiusVariance = 0.35;
+  const { points: numPoints, angleVariance, radiusVariance } = STYLE_CONFIG[style];
+  const step = 360 / numPoints;
+  const baseAngles = Array.from({ length: numPoints }, (_, i) => i * step);
 
-  const points: [number, number][] = [[lat, lng]];
+  const wpts: [number, number][] = [[lat, lng]];
 
   for (const baseAngle of baseAngles) {
     const angle = baseAngle + (Math.random() - 0.5) * 2 * angleVariance;
@@ -27,11 +34,11 @@ function generateWaypoints(
     const r = radiusKm * (1 - radiusVariance / 2 + Math.random() * radiusVariance);
     const dlat = Math.cos(rad) * r * DEG_PER_KM_LAT;
     const dlng = Math.sin(rad) * r * DEG_PER_KM_LNG;
-    points.push([lat + dlat, lng + dlng]);
+    wpts.push([lat + dlat, lng + dlng]);
   }
 
-  points.push([lat, lng]); // retour au départ
-  return points;
+  wpts.push([lat, lng]);
+  return wpts;
 }
 
 // Appelle l'API OpenRouteService pour calculer le tracé routier
@@ -95,7 +102,7 @@ ${trkpts}
 
 export async function POST(request: NextRequest) {
   try {
-    const { lat, lng, duration } = await request.json();
+    const { lat, lng, duration, style = "sportif" } = await request.json();
 
     if (!lat || !lng || !duration) {
       return Response.json({ error: "Paramètres manquants" }, { status: 400 });
@@ -109,7 +116,7 @@ export async function POST(request: NextRequest) {
     let usedWaypoints: [number, number][] | null = null;
     for (let attempt = 0; attempt < 4; attempt++) {
       try {
-        const waypoints = generateWaypoints(lat, lng, radiusKm);
+        const waypoints = generateWaypoints(lat, lng, radiusKm, style);
         route = await fetchRoute(waypoints);
         usedWaypoints = waypoints;
         break;
