@@ -17,24 +17,25 @@ interface MotoSpot {
   name: string;
 }
 
-// Interroge Overpass API pour trouver les spots moto dans la zone :
-// viewpoints, attractions touristiques, routes de cols, circuits, forêts
+// Interroge Overpass API pour trouver les spots moto dans la zone
 async function fetchMotoSpots(lat: number, lng: number, radiusKm: number): Promise<MotoSpot[]> {
   const radiusM = Math.round(radiusKm * 1000);
 
+  // Stratégie : chercher les routes secondaires/tertiaires nommées avec beaucoup
+  // de nœuds (= sinueuses), les viewpoints, et les routes aux noms évocateurs
   const query = `
-[out:json][timeout:10];
+[out:json][timeout:12];
 (
   node["tourism"="viewpoint"](around:${radiusM},${lat},${lng});
   node["tourism"="attraction"](around:${radiusM},${lat},${lng});
   node["sport"="motor"](around:${radiusM},${lat},${lng});
-  way["highway"]["name"]["tourism"="yes"](around:${radiusM},${lat},${lng});
-  way["highway"]["name"]["scenic"="yes"](around:${radiusM},${lat},${lng});
-  way["highway"="secondary"]["name"][~"virage|col|corniche|escargot|belvédère|panorama"~"i"](around:${radiusM},${lat},${lng});
-  way["highway"="tertiary"]["name"][~"virage|col|corniche|escargot|belvédère|panorama"~"i"](around:${radiusM},${lat},${lng});
+  way["highway"~"secondary|tertiary"]["tourism"="yes"](around:${radiusM},${lat},${lng});
+  way["highway"~"secondary|tertiary"]["scenic"="yes"](around:${radiusM},${lat},${lng});
+  way["highway"~"secondary|tertiary"]["name"~"virage|virages|col|corniche|escargot|belvedere|belvédère|panorama|ronde|lacet|épingle|épingles","i"](around:${radiusM},${lat},${lng});
+  way["highway"~"secondary|tertiary"]["name"~"forêt|foret|montagne|crête|crete|circuit","i"](around:${radiusM},${lat},${lng});
   relation["route"="road"]["name"](around:${radiusM},${lat},${lng});
 );
-out center 15;
+out center 20;
 `;
 
   try {
@@ -65,8 +66,7 @@ out center 15;
 }
 
 // Insère les spots moto comme waypoints dans la boucle.
-// On place chaque spot au point de la boucle dont l'angle est le plus proche,
-// en remplaçant ce waypoint si le spot est dans le rayon.
+// Pour chaque spot, on remplace le waypoint intérieur le plus proche en angle.
 function injectSpots(
   wpts: [number, number][],
   spots: MotoSpot[],
@@ -75,17 +75,16 @@ function injectSpots(
 ): [number, number][] {
   if (spots.length === 0) return wpts;
 
-  // On garde début et fin (départ = wpts[0] = wpts[last])
   const inner = wpts.slice(1, -1);
+  const used = new Set<number>();
 
   for (const spot of spots.slice(0, 3)) {
-    // Angle du spot par rapport au centre
     const spotAngle = Math.atan2(spot.lng - centerLng, spot.lat - centerLat);
 
-    // Trouver le waypoint intérieur dont l'angle est le plus proche
-    let bestIdx = 0;
+    let bestIdx = -1;
     let bestDiff = Infinity;
     for (let i = 0; i < inner.length; i++) {
+      if (used.has(i)) continue;
       const wAngle = Math.atan2(inner[i][1] - centerLng, inner[i][0] - centerLat);
       const diff = Math.abs(spotAngle - wAngle);
       const normalizedDiff = Math.min(diff, 2 * Math.PI - diff);
@@ -95,9 +94,10 @@ function injectSpots(
       }
     }
 
-    // Remplace si l'angle est à moins de 30° d'écart
-    if (bestDiff < (30 * Math.PI) / 180) {
+    // Injecte si le spot est à moins de 45° du waypoint le plus proche
+    if (bestIdx >= 0 && bestDiff < (45 * Math.PI) / 180) {
       inner[bestIdx] = [spot.lat, spot.lng];
+      used.add(bestIdx);
     }
   }
 
