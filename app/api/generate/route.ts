@@ -135,43 +135,61 @@ out geom 40;
   }
 }
 
-// Insère les spots moto comme waypoints dans la boucle.
-// Pour chaque spot, on remplace le waypoint intérieur le plus proche en angle.
+// Insère les spots moto comme waypoints dans la boucle, en garantissant
+// que la route passe par eux (insertion à la bonne place dans l'ordre angulaire,
+// plutôt qu'un simple remplacement conditionnel qui pouvait ne jamais se déclencher).
+// Renvoie les nouveaux waypoints ET la liste des spots effectivement injectés,
+// pour qu'on n'affiche à l'utilisateur que ceux réellement sur le tracé.
 function injectSpots(
   wpts: [number, number][],
   spots: MotoSpot[],
   centerLat: number,
   centerLng: number
-): [number, number][] {
-  if (spots.length === 0) return wpts;
+): { waypoints: [number, number][]; injected: MotoSpot[] } {
+  if (spots.length === 0) return { waypoints: wpts, injected: [] };
 
-  const inner = wpts.slice(1, -1);
-  const used = new Set<number>();
+  const angleOf = (p: [number, number]) => {
+    let a = Math.atan2(p[1] - centerLng, p[0] - centerLat);
+    if (a < 0) a += 2 * Math.PI;
+    return a;
+  };
+
+  // wpts = [centre, ...inner (en ordre angulaire croissant approx), centre]
+  let inner = wpts.slice(1, -1);
+  const injected: MotoSpot[] = [];
 
   for (const spot of spots.slice(0, 3)) {
-    const spotAngle = Math.atan2(spot.lng - centerLng, spot.lat - centerLat);
+    const spotAngle = angleOf([spot.lat, spot.lng]);
+    const spotPoint: [number, number] = [spot.lat, spot.lng];
 
-    let bestIdx = -1;
-    let bestDiff = Infinity;
+    // Évite les doublons trop proches (un spot déjà injecté tout près)
+    const tooClose = inner.some((p) => {
+      const dLat = p[0] - spot.lat;
+      const dLng = (p[1] - spot.lng) * Math.cos((centerLat * Math.PI) / 180);
+      return Math.sqrt(dLat * dLat + dLng * dLng) < 0.01; // ~1km
+    });
+    if (tooClose) continue;
+
+    // Trouve l'intervalle [i, i+1] dont les angles encadrent l'angle du spot,
+    // pour insérer le spot au bon endroit dans la boucle (ordre angulaire conservé)
+    let insertIdx = inner.length; // par défaut : à la fin
     for (let i = 0; i < inner.length; i++) {
-      if (used.has(i)) continue;
-      const wAngle = Math.atan2(inner[i][1] - centerLng, inner[i][0] - centerLat);
-      const diff = Math.abs(spotAngle - wAngle);
-      const normalizedDiff = Math.min(diff, 2 * Math.PI - diff);
-      if (normalizedDiff < bestDiff) {
-        bestDiff = normalizedDiff;
-        bestIdx = i;
+      const a1 = angleOf(inner[i]);
+      const a2 = angleOf(inner[(i + 1) % inner.length]);
+      // gère le passage 2π -> 0
+      const inInterval =
+        a1 <= a2 ? spotAngle >= a1 && spotAngle <= a2 : spotAngle >= a1 || spotAngle <= a2;
+      if (inInterval) {
+        insertIdx = i + 1;
+        break;
       }
     }
 
-    // Injecte si le spot est à moins de 45° du waypoint le plus proche
-    if (bestIdx >= 0 && bestDiff < (45 * Math.PI) / 180) {
-      inner[bestIdx] = [spot.lat, spot.lng];
-      used.add(bestIdx);
-    }
+    inner = [...inner.slice(0, insertIdx), spotPoint, ...inner.slice(insertIdx)];
+    injected.push(spot);
   }
 
-  return [wpts[0], ...inner, wpts[wpts.length - 1]];
+  return { waypoints: [wpts[0], ...inner, wpts[wpts.length - 1]], injected };
 }
 
 function generateWaypoints(
@@ -281,20 +299,22 @@ export async function POST(request: NextRequest) {
 
     let route: [number, number][] | null = null;
     let usedWaypoints: [number, number][] | null = null;
-    let spots: MotoSpot[] = [];
+    let injectedSpots: MotoSpot[] = [];
+    const allSpots = await spotsPromise;
 
     for (let attempt = 0; attempt < 4; attempt++) {
       try {
-        let wpts = generateWaypoints(lat, lng, radiusKm, style as Style);
-
-        // Au 1er essai on attend les spots pour les injecter
-        if (attempt === 0) {
-          spots = await spotsPromise;
-          wpts = injectSpots(wpts, spots, lat, lng);
-        }
+        const baseWpts = generateWaypoints(lat, lng, radiusKm, style as Style);
+        // On tente d'injecter les spots à chaque essai ; si ça échoue on retente
+        // sans (boucle simple) pour garantir qu'on obtient au moins une route.
+        const tryInjected = attempt < 3;
+        const { waypoints: wpts, injected } = tryInjected
+          ? injectSpots(baseWpts, allSpots, lat, lng)
+          : { waypoints: baseWpts, injected: [] as MotoSpot[] };
 
         route = await fetchRoute(wpts);
         usedWaypoints = wpts;
+        injectedSpots = injected;
         break;
       } catch {
         // retry avec nouveaux waypoints aléatoires
@@ -310,7 +330,7 @@ export async function POST(request: NextRequest) {
       route,
       gpx,
       waypoints: usedWaypoints,
-      spots: spots.slice(0, 3).map((s) => ({ name: s.name, lat: s.lat, lng: s.lng })),
+      spots: injectedSpots.map((s) => ({ name: s.name, lat: s.lat, lng: s.lng })),
     });
   } catch (e) {
     return Response.json({ error: e instanceof Error ? e.message : "Erreur inconnue" }, { status: 500 });
