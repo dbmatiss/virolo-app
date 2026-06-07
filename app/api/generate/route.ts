@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { findCuratedSpots } from "@/lib/motoSpots";
 
 const ORS_API_KEY = process.env.ORS_API_KEY;
 const AVG_SPEED_KMH = 45;
@@ -60,6 +61,75 @@ out center 20;
     }
 
     return spots;
+  } catch {
+    return [];
+  }
+}
+
+// Calcule la sinuosité de routes nommées dans la zone : ratio entre la longueur
+// réelle du tracé et la distance à vol d'oiseau entre ses extrémités.
+// Plus le ratio est élevé, plus la route est sinueuse (= intéressante à moto).
+async function fetchSinuousRoads(lat: number, lng: number, radiusKm: number): Promise<MotoSpot[]> {
+  const radiusM = Math.round(radiusKm * 1000);
+
+  const query = `
+[out:json][timeout:15];
+(
+  way["highway"~"secondary|tertiary|unclassified"]["name"](around:${radiusM},${lat},${lng});
+);
+out geom 40;
+`;
+
+  try {
+    const res = await fetch("https://overpass-api.de/api/interpreter", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: `data=${encodeURIComponent(query)}`,
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (!res.ok) return [];
+    const data = await res.json();
+
+    const haversine = (lat1: number, lng1: number, lat2: number, lng2: number) => {
+      const R = 6371;
+      const dLat = ((lat2 - lat1) * Math.PI) / 180;
+      const dLng = ((lng2 - lng1) * Math.PI) / 180;
+      const a =
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+      return 2 * R * Math.asin(Math.sqrt(a));
+    };
+
+    const candidates: (MotoSpot & { sinuosity: number })[] = [];
+
+    for (const el of data.elements ?? []) {
+      const name = el.tags?.name;
+      const geom = el.geometry;
+      if (!name || !Array.isArray(geom) || geom.length < 6) continue;
+
+      let pathLength = 0;
+      for (let i = 1; i < geom.length; i++) {
+        pathLength += haversine(geom[i - 1].lat, geom[i - 1].lon, geom[i].lat, geom[i].lon);
+      }
+
+      const start = geom[0];
+      const end = geom[geom.length - 1];
+      const straightDist = haversine(start.lat, start.lon, end.lat, end.lon);
+
+      // Ignore les routes trop courtes ou quasi-rectilignes
+      if (pathLength < 1 || straightDist < 0.3) continue;
+
+      const sinuosity = pathLength / straightDist;
+      if (sinuosity < 1.3) continue; // pas assez sinueuse pour être un "spot"
+
+      // Point représentatif = milieu du tracé
+      const mid = geom[Math.floor(geom.length / 2)];
+      candidates.push({ name, lat: mid.lat, lng: mid.lon, sinuosity });
+    }
+
+    candidates.sort((a, b) => b.sinuosity - a.sinuosity);
+    return candidates.slice(0, 5).map(({ name, lat, lng }) => ({ name, lat, lng }));
   } catch {
     return [];
   }
@@ -186,8 +256,28 @@ export async function POST(request: NextRequest) {
 
     const radiusKm = (duration * AVG_SPEED_KMH) / 4;
 
-    // Cherche les spots moto en parallèle pendant qu'on prépare les waypoints
-    const spotsPromise = fetchMotoSpots(lat, lng, radiusKm);
+    // Cherche les spots moto en parallèle pendant qu'on prépare les waypoints :
+    // 1) base curatée manuellement (priorité max), 2) routes sinueuses détectées
+    // par calcul géométrique, 3) recherche par tags/noms Overpass (fallback)
+    const curated = findCuratedSpots(lat, lng, radiusKm);
+    const spotsPromise = (async (): Promise<MotoSpot[]> => {
+      const [sinuous, tagged] = await Promise.all([
+        fetchSinuousRoads(lat, lng, radiusKm),
+        fetchMotoSpots(lat, lng, radiusKm),
+      ]);
+
+      const combined: MotoSpot[] = [...curated];
+      const seen = new Set(combined.map((s) => s.name.toLowerCase()));
+
+      for (const s of [...sinuous, ...tagged]) {
+        const key = s.name.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        combined.push(s);
+      }
+
+      return combined;
+    })();
 
     let route: [number, number][] | null = null;
     let usedWaypoints: [number, number][] | null = null;
