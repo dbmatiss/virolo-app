@@ -38,11 +38,31 @@ export default function AppPage() {
   const [shareToken, setShareToken] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [spots, setSpots] = useState<{ name: string; lat: number; lng: number }[]>([]);
+  const [shareMenuRouteId, setShareMenuRouteId] = useState<string | null>(null);
+  const [friendsList, setFriendsList] = useState<{ id: string; name: string; email: string }[]>([]);
+  const [shareFriendStatus, setShareFriendStatus] = useState<string | null>(null);
 
   useEffect(() => {
     if (!session?.user) return;
     fetch("/api/routes").then((r) => r.json()).then((d) => { if (d.routes) setSavedRoutes(d.routes); });
+    fetch("/api/friends").then((r) => r.json()).then((d) => { if (d.friends) setFriendsList(d.friends); });
   }, [session]);
+
+  const shareRouteWithFriend = async (routeId: string, friendId: string) => {
+    setShareFriendStatus(null);
+    const res = await fetch("/api/routes/share-with-friend", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ routeId, friendId }),
+    });
+    if (res.ok) {
+      setShareFriendStatus("Boucle partagée !");
+      setTimeout(() => { setShareMenuRouteId(null); setShareFriendStatus(null); }, 1200);
+    } else {
+      const d = await res.json();
+      setShareFriendStatus(d.error ?? "Erreur");
+    }
+  };
 
   const locate = () => {
     if (!navigator.geolocation) return;
@@ -159,6 +179,15 @@ export default function AppPage() {
         <div className="flex items-center gap-2">
           {session ? (
             <>
+              <Link
+                href="/friends"
+                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-sm text-zinc-300 hover:text-white bg-zinc-800 hover:bg-zinc-700 rounded-lg transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-2.13a4 4 0 10-4-4 4 4 0 004 4zm6 0a4 4 0 10-4-4" />
+                </svg>
+                Amis
+              </Link>
               {savedRoutes.length > 0 && (
                 <button
                   onClick={() => setShowSaved(true)}
@@ -352,15 +381,45 @@ export default function AppPage() {
             </div>
             <div className="overflow-y-auto flex-1 p-3 space-y-2">
               {savedRoutes.map((r) => (
-                <button key={r.id} onClick={() => loadSavedRoute(r)} className="w-full flex items-center gap-3 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-xl p-3 text-left transition-colors">
-                  <div className="w-8 h-8 bg-orange-500/20 border border-orange-500/30 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <svg className="w-4 h-4 text-orange-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" /></svg>
+                <div key={r.id} className="bg-zinc-800 border border-zinc-700 rounded-xl overflow-hidden">
+                  <div className="w-full flex items-center gap-3 p-3">
+                    <button onClick={() => loadSavedRoute(r)} className="flex items-center gap-3 flex-1 min-w-0 text-left">
+                      <div className="w-8 h-8 bg-orange-500/20 border border-orange-500/30 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <svg className="w-4 h-4 text-orange-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" /></svg>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-white">{Math.floor(r.duration)}h{r.duration % 1 ? ((r.duration % 1) * 60).toFixed(0) : ""} · ~{Math.round(r.duration * 45)} km</p>
+                        <p className="text-xs text-zinc-500">{new Date(r.created_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" })}</p>
+                      </div>
+                    </button>
+                    {friendsList.length > 0 && (
+                      <button
+                        onClick={() => { setShareMenuRouteId(shareMenuRouteId === r.id ? null : r.id); setShareFriendStatus(null); }}
+                        className="flex-shrink-0 w-8 h-8 flex items-center justify-center text-zinc-400 hover:text-white hover:bg-zinc-700 rounded-lg transition-colors"
+                        title="Partager à un ami"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342a4 4 0 100-2.684m0 2.684a4 4 0 110-2.684m0 2.684l6.632 3.658m-6.632-6.342l6.632-3.658m0 0a4 4 0 105.367-5.367 4 4 0 00-5.367 5.367zm0 9.316a4 4 0 105.367 5.367 4 4 0 00-5.367-5.367z" /></svg>
+                      </button>
+                    )}
                   </div>
-                  <div>
-                    <p className="text-sm font-medium text-white">{Math.floor(r.duration)}h{r.duration % 1 ? ((r.duration % 1) * 60).toFixed(0) : ""} · ~{Math.round(r.duration * 45)} km</p>
-                    <p className="text-xs text-zinc-500">{new Date(r.created_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" })}</p>
-                  </div>
-                </button>
+                  {shareMenuRouteId === r.id && (
+                    <div className="px-3 pb-3 pt-0 border-t border-zinc-700/60 animate-fade-in">
+                      <p className="text-xs text-zinc-500 mt-2 mb-1.5">Partager avec :</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {friendsList.map((f) => (
+                          <button
+                            key={f.id}
+                            onClick={() => shareRouteWithFriend(r.id, f.id)}
+                            className="px-2.5 py-1 text-xs bg-zinc-700 hover:bg-orange-500 hover:text-white text-zinc-300 rounded-lg transition-colors"
+                          >
+                            {f.name}
+                          </button>
+                        ))}
+                      </div>
+                      {shareFriendStatus && <p className="text-xs text-emerald-400 mt-1.5">{shareFriendStatus}</p>}
+                    </div>
+                  )}
+                </div>
               ))}
             </div>
           </div>
