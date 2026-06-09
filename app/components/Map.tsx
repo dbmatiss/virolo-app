@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import type { Map as LeafletMap, Polyline, Marker } from "leaflet";
+import type { Map as LeafletMap, Polyline, Marker, TileLayer } from "leaflet";
 
 interface MapProps {
   route: [number, number][] | null;
@@ -16,7 +16,7 @@ export default function Map({ route, center, onCenterChange, theme = "dark" }: M
   const polylineRef = useRef<Polyline | null>(null);
   const markerRef = useRef<Marker | null>(null);
   const positionMarkerRef = useRef<Marker | null>(null);
-  const tileLayerRef = useRef<ReturnType<typeof import("leaflet")["default"]["tileLayer"]> | null>(null);
+  const tileLayerRef = useRef<TileLayer | null>(null);
   const onCenterChangeRef = useRef(onCenterChange);
 
   useEffect(() => { onCenterChangeRef.current = onCenterChange; }, [onCenterChange]);
