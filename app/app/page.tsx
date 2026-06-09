@@ -6,6 +6,7 @@ import { useSession, signOut } from "next-auth/react";
 import Link from "next/link";
 import Image from "next/image";
 import BottomNav from "../components/BottomNav";
+import { useTheme } from "../components/ThemeProvider";
 
 const Map = dynamic(() => import("../components/Map"), { ssr: false });
 
@@ -15,6 +16,7 @@ type Style = "tranquille" | "sportif" | "extreme";
 
 export default function AppPage() {
   const { data: session } = useSession();
+  const { theme, toggle: toggleTheme } = useTheme();
   const [center, setCenter] = useState<[number, number]>(DEFAULT_CENTER);
   const [duration, setDuration] = useState(2);
   const [style, setStyle] = useState<Style>("sportif");
@@ -135,6 +137,23 @@ export default function AppPage() {
           <span className="font-bold text-lg tracking-tight">Virolo</span>
         </Link>
 
+        {/* Toggle thème */}
+        <button
+          onClick={toggleTheme}
+          className="w-8 h-8 flex items-center justify-center text-zinc-400 hover:text-white bg-zinc-800 hover:bg-zinc-700 rounded-lg transition-colors"
+          title={theme === "dark" ? "Passer en mode clair" : "Passer en mode sombre"}
+        >
+          {theme === "dark" ? (
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707M17.657 17.657l-.707-.707M6.343 6.343l-.707-.707M12 8a4 4 0 100 8 4 4 0 000-8z" />
+            </svg>
+          ) : (
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+            </svg>
+          )}
+        </button>
+
         {session ? (
           <div className="relative">
             <button
@@ -181,7 +200,7 @@ export default function AppPage() {
       {/* Map area */}
       <div className="flex-1 relative overflow-hidden">
         <div className="absolute inset-0">
-          <Map route={route} center={center} onCenterChange={!loading ? setCenter : undefined} />
+          <Map route={route} center={center} onCenterChange={!loading ? setCenter : undefined} theme={theme} />
         </div>
 
         {/* Hint clic sur carte */}

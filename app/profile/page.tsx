@@ -5,6 +5,7 @@ import { useSession, signOut } from "next-auth/react";
 import Link from "next/link";
 import Image from "next/image";
 import BottomNav, { avatarColor } from "../components/BottomNav";
+import { useTheme } from "../components/ThemeProvider";
 
 interface Route {
   id: string;
@@ -106,6 +107,7 @@ export default function ProfilePage() {
     );
   }
 
+  const { theme, toggle: toggleTheme } = useTheme();
   const name = session.user?.name ?? "Motard";
   const email = session.user?.email ?? "";
   const initial = name[0]?.toUpperCase() ?? "?";
@@ -223,6 +225,38 @@ export default function ProfilePage() {
                 </svg>
               </Link>
             ))}
+          </div>
+
+          {/* Thème */}
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl px-4 py-3.5 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-zinc-800 rounded-lg flex items-center justify-center flex-shrink-0">
+                {theme === "dark" ? (
+                  <svg className="w-4 h-4 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                  </svg>
+                ) : (
+                  <svg className="w-4 h-4 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707M17.657 17.657l-.707-.707M6.343 6.343l-.707-.707M12 8a4 4 0 100 8 4 4 0 000-8z" />
+                  </svg>
+                )}
+              </div>
+              <div>
+                <p className="text-sm text-zinc-300 font-medium">{theme === "dark" ? "Mode sombre" : "Mode clair"}</p>
+                <p className="text-[10px] text-zinc-600">Préférence sauvegardée localement</p>
+              </div>
+            </div>
+            {/* Toggle switch */}
+            <button
+              onClick={toggleTheme}
+              className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${
+                theme === "light" ? "bg-orange-500" : "bg-zinc-700"
+              }`}
+            >
+              <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
+                theme === "light" ? "translate-x-5" : "translate-x-0"
+              }`} />
+            </button>
           </div>
 
           {/* Sign out */}

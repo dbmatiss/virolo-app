@@ -15,7 +15,59 @@ html, body, #__next {
   font-family: var(--font-inter);
 }
 
-/* Leaflet map dark override */
+/* ─── Mode clair ─────────────────────────────────────────────── */
+html[data-theme="light"] body {
+  background-color: #ffffff;
+  color: #18181b;
+}
+
+/* Fonds */
+html[data-theme="light"] .bg-zinc-950 { background-color: #ffffff !important; }
+html[data-theme="light"] .bg-zinc-900 { background-color: #f4f4f5 !important; }
+html[data-theme="light"] .bg-zinc-800 { background-color: #e4e4e7 !important; }
+html[data-theme="light"] .bg-zinc-700 { background-color: #d4d4d8 !important; }
+
+/* Textes */
+html[data-theme="light"] .text-white   { color: #18181b !important; }
+html[data-theme="light"] .text-zinc-300 { color: #3f3f46 !important; }
+html[data-theme="light"] .text-zinc-400 { color: #52525b !important; }
+html[data-theme="light"] .text-zinc-500 { color: #71717a !important; }
+html[data-theme="light"] .text-zinc-600 { color: #a1a1aa !important; }
+html[data-theme="light"] .text-zinc-700 { color: #d4d4d8 !important; }
+
+/* Bordures */
+html[data-theme="light"] .border-zinc-900 { border-color: #e4e4e7 !important; }
+html[data-theme="light"] .border-zinc-800 { border-color: #e4e4e7 !important; }
+html[data-theme="light"] .border-zinc-700 { border-color: #d4d4d8 !important; }
+
+/* Hover states */
+html[data-theme="light"] .hover\:bg-zinc-700:hover { background-color: #d4d4d8 !important; }
+html[data-theme="light"] .hover\:bg-zinc-800:hover { background-color: #e4e4e7 !important; }
+html[data-theme="light"] .hover\:border-zinc-600:hover { border-color: #d4d4d8 !important; }
+html[data-theme="light"] .hover\:border-zinc-500:hover { border-color: #a1a1aa !important; }
+html[data-theme="light"] .hover\:text-white:hover { color: #18181b !important; }
+html[data-theme="light"] .hover\:text-zinc-300:hover { color: #3f3f46 !important; }
+
+/* Fond semi-transparent des headers */
+html[data-theme="light"] .bg-zinc-900\/95 { background-color: rgba(244,244,245,0.95) !important; }
+html[data-theme="light"] .bg-zinc-800\/60 { background-color: rgba(228,228,231,0.6) !important; }
+
+/* Divide (séparateurs entre éléments) */
+html[data-theme="light"] .divide-zinc-800 > * + * { border-color: #e4e4e7 !important; }
+
+/* Carte Leaflet en mode clair */
+html[data-theme="light"] .leaflet-container { background: #e8e8e8 !important; }
+
+/* Scrollbar mode clair */
+html[data-theme="light"] ::-webkit-scrollbar-thumb { background: #d4d4d8; }
+
+/* Transition douce lors du changement de thème */
+html {
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+/* ─────────────────────────────────────────────────────────────── */
+
+/* Leaflet map dark override (mode sombre) */
 .leaflet-container {
   background: #1c1c1e;
 }
@@ -28,6 +80,10 @@ input[type="range"] {
   border-radius: 2px;
   background: #3f3f46;
   outline: none;
+}
+
+html[data-theme="light"] input[type="range"] {
+  background: #d4d4d8;
 }
 
 input[type="range"]::-webkit-slider-thumb {

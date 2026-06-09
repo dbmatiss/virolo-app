@@ -7,17 +7,38 @@ interface MapProps {
   route: [number, number][] | null;
   center: [number, number];
   onCenterChange?: (latlng: [number, number]) => void;
+  theme?: "dark" | "light";
 }
 
-export default function Map({ route, center, onCenterChange }: MapProps) {
+export default function Map({ route, center, onCenterChange, theme = "dark" }: MapProps) {
   const mapRef = useRef<LeafletMap | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const polylineRef = useRef<Polyline | null>(null);
   const markerRef = useRef<Marker | null>(null);
   const positionMarkerRef = useRef<Marker | null>(null);
+  const tileLayerRef = useRef<ReturnType<typeof import("leaflet")["default"]["tileLayer"]> | null>(null);
   const onCenterChangeRef = useRef(onCenterChange);
 
   useEffect(() => { onCenterChangeRef.current = onCenterChange; }, [onCenterChange]);
+
+  // Switch tuiles quand le thème change
+  useEffect(() => {
+    if (!mapRef.current || !tileLayerRef.current) return;
+    const updateTiles = async () => {
+      const L = (await import("leaflet")).default;
+      const map = mapRef.current!;
+      tileLayerRef.current?.remove();
+      const tileUrl = theme === "light"
+        ? "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
+        : "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png";
+      tileLayerRef.current = L.tileLayer(tileUrl, {
+        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://carto.com/attributions">CARTO</a>',
+        subdomains: "abcd",
+        maxZoom: 19,
+      }).addTo(map);
+    };
+    updateTiles();
+  }, [theme]);
 
   // Init map once
   useEffect(() => {
@@ -36,8 +57,12 @@ export default function Map({ route, center, onCenterChange }: MapProps) {
 
       const map = L.map(containerRef.current!, { zoomControl: false }).setView(center, 12);
 
-      // CartoDB Dark Matter — look premium, pas de clé API nécessaire
-      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+      // CartoDB tiles — dark ou light selon le thème
+      const tileUrl = theme === "light"
+        ? "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
+        : "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png";
+
+      tileLayerRef.current = L.tileLayer(tileUrl, {
         attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://carto.com/attributions">CARTO</a>',
         subdomains: "abcd",
         maxZoom: 19,
