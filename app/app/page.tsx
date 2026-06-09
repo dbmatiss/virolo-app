@@ -29,6 +29,15 @@ export default function AppPage() {
   const [spots, setSpots] = useState<{ name: string; lat: number; lng: number }[]>([]);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
 
+  // Auto-localisation au premier chargement (silencieux si refus)
+  useEffect(() => {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      (pos) => setCenter([pos.coords.latitude, pos.coords.longitude]),
+      () => {} // on garde le centre par défaut si refus
+    );
+  }, []);
+
   const locate = () => {
     if (!navigator.geolocation) return;
     navigator.geolocation.getCurrentPosition(
@@ -172,8 +181,20 @@ export default function AppPage() {
       {/* Map area */}
       <div className="flex-1 relative overflow-hidden">
         <div className="absolute inset-0">
-          <Map route={route} center={center} />
+          <Map route={route} center={center} onCenterChange={!loading ? setCenter : undefined} />
         </div>
+
+        {/* Hint clic sur carte */}
+        {!route && !loading && (
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[999] pointer-events-none">
+            <div className="flex items-center gap-1.5 bg-zinc-900/80 backdrop-blur border border-zinc-700/50 text-zinc-400 text-xs px-3 py-1.5 rounded-full">
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5" />
+              </svg>
+              Clique sur la carte pour choisir ton départ
+            </div>
+          </div>
+        )}
 
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-full max-w-sm px-4 sm:left-4 sm:translate-x-0 z-[1000]">
           <div className="bg-zinc-900/95 backdrop-blur border border-zinc-700/60 rounded-2xl shadow-2xl overflow-hidden">
