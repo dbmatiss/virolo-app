@@ -44,6 +44,18 @@ function Avatar({ name, size = "md" }: { name: string; size?: "sm" | "md" | "lg"
   );
 }
 
+function SkeletonFriend() {
+  return (
+    <div className="flex items-center gap-3 p-4 animate-pulse">
+      <div className="w-10 h-10 bg-zinc-800 rounded-xl flex-shrink-0" />
+      <div className="flex-1 space-y-2">
+        <div className="h-4 bg-zinc-800 rounded w-1/3" />
+        <div className="h-3 bg-zinc-800 rounded w-1/2" />
+      </div>
+    </div>
+  );
+}
+
 export default function FriendsPage() {
   const { data: session, status } = useSession();
   const [tab, setTab] = useState<Tab>("amis");
@@ -118,11 +130,26 @@ export default function FriendsPage() {
     return m > 0 ? `${h}h${m.toFixed(0)}` : `${h}h`;
   };
 
-  if (status === "loading" || loading) {
+  if (status === "loading" || (status === "authenticated" && loading)) {
     return (
-      <div className="flex flex-col h-full">
-        <div className="flex-1 flex items-center justify-center bg-zinc-950">
-          <div className="w-6 h-6 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+      <div className="flex flex-col h-full bg-zinc-950">
+        <header className="flex-none bg-zinc-900/95 backdrop-blur border-b border-zinc-800 px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center text-sm font-bold">V</div>
+            <span className="font-bold text-lg tracking-tight">Virolo</span>
+          </div>
+          <h1 className="font-bold text-base">Amis</h1>
+          <div className="w-20" />
+        </header>
+        <div className="flex border-b border-zinc-800 px-4">
+          {["Amis", "Demandes", "Reçues"].map((t) => (
+            <div key={t} className="px-4 py-3 text-sm font-medium text-zinc-700 border-b-2 border-transparent -mb-px">{t}</div>
+          ))}
+        </div>
+        <div className="flex-1 p-4">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden divide-y divide-zinc-800">
+            <SkeletonFriend /><SkeletonFriend /><SkeletonFriend />
+          </div>
         </div>
         <BottomNav />
       </div>
@@ -152,11 +179,12 @@ export default function FriendsPage() {
   }
 
   const pendingCount = incoming.length;
+  const sharedCount = shared.length;
 
-  const tabs: { id: Tab; label: string; count?: number }[] = [
-    { id: "amis", label: "Amis", count: friends.length > 0 ? friends.length : undefined },
-    { id: "demandes", label: "Demandes", count: pendingCount > 0 ? pendingCount : undefined },
-    { id: "recues", label: "Reçues", count: shared.length > 0 ? shared.length : undefined },
+  const tabs: { id: Tab; label: string; badge?: number }[] = [
+    { id: "amis", label: "Amis", badge: friends.length > 0 ? friends.length : undefined },
+    { id: "demandes", label: "Demandes", badge: pendingCount > 0 ? pendingCount : undefined },
+    { id: "recues", label: "Reçues", badge: sharedCount > 0 ? sharedCount : undefined },
   ];
 
   return (
@@ -184,11 +212,11 @@ export default function FriendsPage() {
             }`}
           >
             {t.label}
-            {t.count !== undefined && (
+            {t.badge !== undefined && (
               <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
                 tab === t.id ? "bg-orange-500/20 text-orange-400" : "bg-zinc-800 text-zinc-500"
               }`}>
-                {t.count}
+                {t.badge}
               </span>
             )}
           </button>
@@ -197,6 +225,7 @@ export default function FriendsPage() {
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto">
+
         {/* Tab: Amis */}
         {tab === "amis" && (
           <div className="p-4 space-y-4">
@@ -250,8 +279,7 @@ export default function FriendsPage() {
               </div>
             )}
 
-            {/* Friends list */}
-            {friends.length === 0 ? (
+            {friends.length === 0 && results.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
                 <div className="w-14 h-14 bg-zinc-900 border border-zinc-800 rounded-2xl flex items-center justify-center">
                   <svg className="w-7 h-7 text-zinc-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -261,7 +289,7 @@ export default function FriendsPage() {
                 <p className="text-zinc-400 text-sm">Pas encore d&apos;amis.</p>
                 <p className="text-zinc-600 text-xs">Recherche par nom ou email pour en ajouter.</p>
               </div>
-            ) : (
+            ) : friends.length > 0 ? (
               <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden divide-y divide-zinc-800">
                 {friends.map((f) => (
                   <div key={f.id} className="flex items-center gap-3 p-4">
@@ -270,11 +298,14 @@ export default function FriendsPage() {
                       <p className="text-sm font-semibold text-white truncate">{f.name}</p>
                       <p className="text-xs text-zinc-500 truncate">{f.email}</p>
                     </div>
-                    <div className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0" title="Ami" />
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0" />
+                      <span className="text-xs text-zinc-600">Ami</span>
+                    </div>
                   </div>
                 ))}
               </div>
-            )}
+            ) : null}
           </div>
         )}
 
@@ -334,7 +365,7 @@ export default function FriendsPage() {
                 <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden divide-y divide-zinc-800">
                   {outgoing.map((r) => (
                     <div key={r.id} className="flex items-center gap-3 p-4">
-                      <Avatar name={r.user.name} size="md" />
+                      <Avatar name={r.user.name} />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-white truncate">{r.user.name}</p>
                         <p className="text-xs text-zinc-500">En attente de réponse...</p>
@@ -381,12 +412,10 @@ export default function FriendsPage() {
                         </svg>
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-0.5">
-                          <p className="text-sm font-semibold text-white">
-                            Boucle {s.route.duration}h · ~{Math.round(s.route.duration * 45)} km
-                          </p>
-                        </div>
-                        <p className="text-xs text-zinc-500">
+                        <p className="text-sm font-semibold text-white">
+                          {durationLabel(s.route.duration)} · ~{Math.round(s.route.duration * 45)} km
+                        </p>
+                        <p className="text-xs text-zinc-500 mt-0.5">
                           De <span className="text-zinc-400">{s.sender?.name ?? "un ami"}</span> · {new Date(s.created_at).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
                         </p>
                       </div>

@@ -26,6 +26,25 @@ function durationLabel(d: number) {
   return m > 0 ? `${h}h${m.toFixed(0)}` : `${h}h`;
 }
 
+function SkeletonCard() {
+  return (
+    <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 animate-pulse">
+      <div className="flex items-center gap-3 mb-3">
+        <div className="w-10 h-10 bg-zinc-800 rounded-xl flex-shrink-0" />
+        <div className="flex-1 space-y-2">
+          <div className="h-4 bg-zinc-800 rounded w-2/5" />
+          <div className="h-3 bg-zinc-800 rounded w-3/5" />
+        </div>
+      </div>
+      <div className="flex gap-2">
+        <div className="flex-1 h-9 bg-zinc-800 rounded-xl" />
+        <div className="flex-1 h-9 bg-zinc-800 rounded-xl" />
+        <div className="flex-1 h-9 bg-zinc-800 rounded-xl" />
+      </div>
+    </div>
+  );
+}
+
 export default function RoutesPage() {
   const { data: session, status } = useSession();
   const [routes, setRoutes] = useState<SavedRoute[]>([]);
@@ -34,11 +53,16 @@ export default function RoutesPage() {
   const [shareMenuId, setShareMenuId] = useState<string | null>(null);
   const [shareStatus, setShareStatus] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+
+  const loadRoutes = () =>
+    fetch("/api/routes").then((r) => r.json()).then((d) => setRoutes(d.routes ?? []));
 
   useEffect(() => {
     if (status !== "authenticated") return;
     Promise.all([
-      fetch("/api/routes").then((r) => r.json()).then((d) => setRoutes(d.routes ?? [])),
+      loadRoutes(),
       fetch("/api/friends").then((r) => r.json()).then((d) => setFriends(d.friends ?? [])),
     ]).finally(() => setLoading(false));
   }, [status]);
@@ -58,18 +82,36 @@ export default function RoutesPage() {
     });
     if (res.ok) {
       setShareStatus("Boucle partagée !");
-      setTimeout(() => { setShareMenuId(null); setShareStatus(null); }, 1200);
+      setTimeout(() => { setShareMenuId(null); setShareStatus(null); }, 1500);
     } else {
       const d = await res.json();
       setShareStatus(d.error ?? "Erreur");
     }
   };
 
-  if (status === "loading" || loading) {
+  const deleteRoute = async (id: string) => {
+    setDeleting(id);
+    await fetch(`/api/routes/${id}`, { method: "DELETE" });
+    setRoutes((prev) => prev.filter((r) => r.id !== id));
+    setDeleting(null);
+    setConfirmDelete(null);
+  };
+
+  if (status === "loading" || (status === "authenticated" && loading)) {
     return (
-      <div className="flex flex-col h-full">
-        <div className="flex-1 flex items-center justify-center bg-zinc-950">
-          <div className="w-6 h-6 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+      <div className="flex flex-col h-full bg-zinc-950">
+        <header className="flex-none bg-zinc-900/95 backdrop-blur border-b border-zinc-800 px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center text-sm font-bold">V</div>
+            <span className="font-bold text-lg tracking-tight">Virolo</span>
+          </div>
+          <h1 className="font-bold text-base">Mes boucles</h1>
+          <div className="w-20" />
+        </header>
+        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
         </div>
         <BottomNav />
       </div>
@@ -100,7 +142,6 @@ export default function RoutesPage() {
 
   return (
     <div className="flex flex-col h-full bg-zinc-950">
-      {/* Header */}
       <header className="flex-none bg-zinc-900/95 backdrop-blur border-b border-zinc-800 px-4 py-3 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-2.5">
           <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center text-sm font-bold shadow-md shadow-orange-500/30">V</div>
@@ -131,17 +172,14 @@ export default function RoutesPage() {
               <p className="text-zinc-500 text-sm">Génère ta première boucle et elle apparaîtra ici.</p>
             </div>
             <Link href="/app" className="flex items-center gap-2 px-5 py-3 bg-orange-500 hover:bg-orange-400 text-white font-semibold rounded-xl transition-colors text-sm">
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
-              </svg>
               Générer une boucle
             </Link>
           </div>
         ) : (
           <div className="p-4 space-y-3">
-            <p className="text-xs text-zinc-600">{routes.length} boucle{routes.length > 1 ? "s" : ""} sauvegardée{routes.length > 1 ? "s" : ""}</p>
+            <p className="text-xs text-zinc-600 font-medium">{routes.length} boucle{routes.length > 1 ? "s" : ""} sauvegardée{routes.length > 1 ? "s" : ""}</p>
             {routes.map((r) => (
-              <div key={r.id} className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
+              <div key={r.id} className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden transition-all">
                 <div className="p-4">
                   <div className="flex items-center gap-3 mb-3">
                     <div className="w-10 h-10 bg-orange-500/15 border border-orange-500/20 rounded-xl flex items-center justify-center flex-shrink-0">
@@ -157,6 +195,33 @@ export default function RoutesPage() {
                         {new Date(r.created_at).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })}
                       </p>
                     </div>
+                    {/* Delete button */}
+                    {confirmDelete === r.id ? (
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <button
+                          onClick={() => deleteRoute(r.id)}
+                          disabled={deleting === r.id}
+                          className="px-2.5 py-1.5 text-xs font-semibold bg-red-500 hover:bg-red-400 text-white rounded-lg transition-colors disabled:opacity-50"
+                        >
+                          {deleting === r.id ? "..." : "Supprimer"}
+                        </button>
+                        <button
+                          onClick={() => setConfirmDelete(null)}
+                          className="px-2.5 py-1.5 text-xs font-medium bg-zinc-800 text-zinc-400 hover:text-white rounded-lg transition-colors"
+                        >
+                          Annuler
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setConfirmDelete(r.id)}
+                        className="flex-shrink-0 w-8 h-8 flex items-center justify-center text-zinc-600 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    )}
                   </div>
 
                   <div className="flex gap-2">
@@ -198,7 +263,7 @@ export default function RoutesPage() {
                 </div>
 
                 {shareMenuId === r.id && (
-                  <div className="px-4 pb-4 pt-0 border-t border-zinc-800">
+                  <div className="px-4 pb-4 border-t border-zinc-800">
                     <p className="text-xs text-zinc-500 mt-3 mb-2">Partager avec :</p>
                     <div className="flex flex-wrap gap-2">
                       {friends.map((f) => (
@@ -212,7 +277,9 @@ export default function RoutesPage() {
                       ))}
                     </div>
                     {shareStatus && (
-                      <p className="text-xs text-emerald-400 mt-2">{shareStatus}</p>
+                      <p className={`text-xs mt-2 ${shareStatus.includes("Erreur") || shareStatus.includes("erreur") ? "text-red-400" : "text-emerald-400"}`}>
+                        {shareStatus}
+                      </p>
                     )}
                   </div>
                 )}
