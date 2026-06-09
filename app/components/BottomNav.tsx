@@ -81,9 +81,9 @@ export default function BottomNav() {
             >
               <div className="relative">
                 {tab.icon}
-                {"badge" in tab && tab.badge > 0 && (
+                {"badge" in tab && (tab.badge as number) > 0 && (
                   <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-0.5 bg-orange-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none">
-                    {tab.badge}
+                    {(tab as { badge: number }).badge}
                   </span>
                 )}
               </div>
