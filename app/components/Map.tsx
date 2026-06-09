@@ -108,8 +108,6 @@ export default function Map({ route, center, onCenterChange }: MapProps) {
         color: "#f97316",
         weight: 5,
         opacity: 1,
-        // @ts-expect-error - renderer option
-        renderer: L.canvas(),
       }).addTo(map);
 
       // Marqueur de départ custom
