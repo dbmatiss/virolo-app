@@ -44,8 +44,7 @@ export default function LoginPage() {
         return;
       }
 
-      router.push("/");
-      router.refresh();
+      router.push("/app");
     } catch {
       setError("Une erreur est survenue");
       setLoading(false);

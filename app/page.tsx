@@ -1,6 +1,11 @@
+"use client";
+
 import Link from "next/link";
+import { useSession } from "next-auth/react";
 
 export default function LandingPage() {
+  const { data: session } = useSession();
+
   return (
     <div className="min-h-full bg-zinc-950 flex flex-col">
       {/* Header */}
@@ -10,10 +15,18 @@ export default function LandingPage() {
           <span className="font-bold text-lg tracking-tight">Virolo</span>
         </div>
         <div className="flex items-center gap-3">
-          <Link href="/login" className="text-sm text-zinc-400 hover:text-white transition-colors">Connexion</Link>
-          <Link href="/app" className="px-4 py-2 bg-orange-500 hover:bg-orange-400 text-white text-sm font-semibold rounded-xl transition-colors">
-            Essayer
-          </Link>
+          {session ? (
+            <Link href="/app" className="px-4 py-2 bg-orange-500 hover:bg-orange-400 text-white text-sm font-semibold rounded-xl transition-colors">
+              Ouvrir l&apos;app
+            </Link>
+          ) : (
+            <>
+              <Link href="/login" className="text-sm text-zinc-400 hover:text-white transition-colors">Connexion</Link>
+              <Link href="/app" className="px-4 py-2 bg-orange-500 hover:bg-orange-400 text-white text-sm font-semibold rounded-xl transition-colors">
+                Essayer
+              </Link>
+            </>
+          )}
         </div>
       </header>
 
